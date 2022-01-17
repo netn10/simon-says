@@ -1,20 +1,10 @@
-import React, {RefObject, useRef} from 'react';
-import {
-  Alert,
-  Animated,
-  Button,
-  Pressable,
-  StyleProp,
-  Text,
-  TouchableOpacity,
-  View,
-  ViewStyle,
-} from 'react-native';
+import React from 'react';
+import {Animated} from 'react-native';
 
 interface Props {
   color: string;
   opacity: Animated.Value;
-  onPress: () => Promise;
+  onPress: () => Promise<void>;
   isPlayerTurn: boolean;
 }
 

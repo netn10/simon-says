@@ -1,0 +1,1 @@
+export const HIGH_SCORES_STORAGE_KEY = "highScores";

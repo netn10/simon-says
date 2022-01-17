@@ -7,17 +7,21 @@ import HighScores from './pages/HighScores';
 
 import {NavigationContainer} from '@react-navigation/native';
 import {createStackNavigator} from '@react-navigation/stack';
+import {Provider} from 'react-redux';
+import {store} from './redux';
 
 const Stack = createStackNavigator();
 
 const App = () => {
   return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName="Home">
-        <Stack.Screen name="Home" component={Home} />
-        <Stack.Screen name="HighScores" component={HighScores} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <Provider store={store}>
+      <NavigationContainer>
+        <Stack.Navigator initialRouteName="Home" detachInactiveScreens>
+          <Stack.Screen name="Home" component={Home} />
+          <Stack.Screen name="HighScores" component={HighScores} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </Provider>
   );
 };
 

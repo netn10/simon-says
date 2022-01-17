@@ -1,27 +1,30 @@
-import React, {RefObject, useEffect, useRef, useState} from 'react';
-import {
-  Animated,
-  Button,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  Pressable,
-  Modal,
-} from 'react-native';
+import React, {useEffect, useRef, useState} from 'react';
+import {Animated, Button, StyleSheet, Text, View, Modal} from 'react-native';
 import {TextInput} from 'react-native-gesture-handler';
 import Sound from 'react-native-sound';
 import GameButton from '../components/GameButton';
 import Navigation from '../types/Navigate';
 import sleep from '../utils/sleep';
-//@ts-ignore
-//import SyncStorage from 'sync-storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {HIGH_SCORES_STORAGE_KEY} from '../commons';
+import {HighScoresType} from '../types/HighScoresType';
+import {findMin} from '../utils/findMin';
+import {useAppDispatch, useAppSelector} from '../redux';
+import {
+  changeTurn,
+  increaseScore,
+  resetGame,
+  setName,
+  startGame,
+  toggleModal,
+} from '../redux/actions/gameActions';
 
+// The four colored buttons
 const gameButtons = [
   {
     id: 0,
     color: 'blue',
-    sound: new Sound(require('../assets/0.mp3'), Sound.MAIN_BUNDLE),
+    sound: new Sound(require('../assets/0.wav'), Sound.MAIN_BUNDLE),
     opacity: new Animated.Value(1),
   },
   {
@@ -45,7 +48,7 @@ const gameButtons = [
 ];
 
 const fadeInOut = (opacity: Animated.Value) => {
-  // Will change fadeAnim value to 0 in 3 seconds
+  // Will change fadeAnim value to 0 in 1 seconds
   Animated.timing(opacity, {
     toValue: 0,
     duration: 100,
@@ -60,6 +63,7 @@ const fadeInOut = (opacity: Animated.Value) => {
 };
 
 const rowSize = 2;
+const scoresListMaxSize = 10;
 
 // Game logic:
 /*
@@ -76,13 +80,11 @@ interface Props {
 }
 
 const Home: React.FC<Props> = ({navigation}) => {
-  const [isStarted, setIsStarted] = useState(false);
-  const [score, setScore] = useState(0);
-  const [isSimonTurn, setIsSimonTurn] = useState(true);
-  const playerSequnceIndex = useRef(0);
+  const {isSimonTurn, isModalOpen, isStarted, playerName, score} =
+    useAppSelector(state => state.gameState);
+  const dispatch = useAppDispatch();
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [playerName, setPlayerName] = useState('');
+  const playerSequnceIndex = useRef(0);
 
   const sequence = useRef<number[]>([]);
   async function playSequence() {
@@ -92,7 +94,7 @@ const Home: React.FC<Props> = ({navigation}) => {
       await onButtonClick(sequenceElement);
       await sleep(1000);
     }
-    setIsSimonTurn(false);
+    dispatch(changeTurn());
   }
 
   const onButtonClick = async (buttonId: number) => {
@@ -106,27 +108,50 @@ const Home: React.FC<Props> = ({navigation}) => {
     else {
       // game over
       console.log('game over!');
-      setIsModalOpen(true);
-
+      dispatch(toggleModal());
       return;
     }
 
     if (playerSequnceIndex.current == sequence.current.length) {
       playerSequnceIndex.current = 0;
-      setScore(prev => prev + 1);
+      dispatch(increaseScore());
       await sleep(1000);
-      setIsSimonTurn(true);
+      dispatch(changeTurn());
     }
   };
 
-  function onModalConfirm() {
+  async function onModalConfirm() {
     //SyncStorage.set(playerName, score);
-    setScore(0);
-    setIsSimonTurn(true);
+    /*
+{"all_data": [{name, score},{name, score}]}
+*/
+    try {
+      const highScoresString = await AsyncStorage.getItem(
+        HIGH_SCORES_STORAGE_KEY,
+      );
+
+      const highScores: HighScoresType = highScoresString
+        ? JSON.parse(highScoresString)
+        : [];
+
+      const newScore = {playerName, score};
+      const minScore = findMin(highScores.map(v => v.score));
+      highScores.sort((a, b) => b.score - a.score);
+      if (highScores.length < scoresListMaxSize) highScores.push(newScore);
+      else if (minScore < score) highScores[scoresListMaxSize - 1] = newScore;
+
+      await AsyncStorage.setItem(
+        HIGH_SCORES_STORAGE_KEY,
+        JSON.stringify(highScores),
+      );
+    } catch (e) {
+      console.log(e);
+    }
+
     sequence.current = [];
     playerSequnceIndex.current = 0;
     navigation.navigate('HighScores');
-    setIsModalOpen(false);
+    dispatch(resetGame());
   }
 
   useEffect(() => {
@@ -140,7 +165,7 @@ const Home: React.FC<Props> = ({navigation}) => {
   const turnText = isSimonTurn ? 'Simon Turn' : 'Your Turn';
 
   if (!isStarted)
-    return <Button onPress={() => setIsStarted(true)} title="Start Game" />;
+    return <Button onPress={() => dispatch(startGame())} title="Start Game" />;
 
   return (
     <>
@@ -157,12 +182,12 @@ const Home: React.FC<Props> = ({navigation}) => {
             style={{backgroundColor: 'silver', width: '75%', margin: 10}}
             editable
             value={playerName}
-            onChangeText={setPlayerName}
+            onChangeText={value => dispatch(setName(value))}
           />
           <Button
             title="Confirm"
             onPress={onModalConfirm}
-            disabled={playerName.length === 0}
+            disabled={!playerName}
           />
         </View>
       </Modal>
